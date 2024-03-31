@@ -9,6 +9,13 @@ import {
   InputGroup,
   InputRightElement,
   Image,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
 } from "@chakra-ui/react";
 import {
   Favorite,
@@ -25,12 +32,16 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  query,
+  collection,
+  where,
 } from "firebase/firestore";
 import { db } from "../../firebase/firebase";
 import { AuthContext } from "../../components/AuthContext";
 import CommentModal from "./CommentModal";
 import { ChatIcon } from "@chakra-ui/icons";
 import EmojiPicker from "emoji-picker-react";
+import UserProfile from "../UserProfilePage/UserProfile";
 
 const Post = ({
   id,
@@ -54,6 +65,9 @@ const Post = ({
   const [showEmojis, setShowEmojis] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [comments, setComments] = useState(initialComments ?? []);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [updatedUsername, setUpdatedUsername] = useState(username);
 
   useEffect(() => {
     if (!uid) return;
@@ -85,6 +99,23 @@ const Post = ({
       fetchUsername();
     }
   }, [username, uid]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      query(collection(db, "Posts"), where("userUID", "==", userUID)),
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "modified" && change.doc.data().username) {
+            setUpdatedUsername(change.doc.data().username);
+          }
+        });
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [userUID]);
 
   const handleLikeClick = async () => {
     const postRef = doc(db, "Posts", id);
@@ -199,12 +230,14 @@ const Post = ({
       await updateDoc(postRef, {
         username: newUsername,
       });
+      setUpdatedUsername(newUsername);
     } catch (error) {
       console.error("Error updating username in posts:", error);
     }
   };
 
-  const displayUsername = username || (user && user.displayName) || "Anonymous";
+  const displayUsername =
+    updatedUsername || (user && user.displayName) || "Anonymous";
 
   const handleEmojiClick = (emojiObject, event) => {
     if (emojiObject && emojiObject.hasOwnProperty("emoji")) {
@@ -213,6 +246,11 @@ const Post = ({
     } else {
       console.error("Invalid emojiObject:", emojiObject);
     }
+  };
+
+  const handleUsernameClick = () => {
+    setSelectedUser(user);
+    setShowUserModal(true);
   };
 
   return (
@@ -235,8 +273,20 @@ const Post = ({
         justifyContent="space-between"
       >
         <Box display="flex" alignItems="center">
-          <Avatar src={avatarUrl} alt={`${displayUsername} avatar`} mr="2" />
-          <Text fontWeight="semibold">{displayUsername}</Text>
+          <Avatar
+            src={avatarUrl}
+            alt={`${displayUsername} avatar`}
+            mr="2"
+            onClick={handleUsernameClick}
+            style={{ cursor: "pointer" }}
+          />
+          <Text
+            fontWeight="semibold"
+            onClick={handleUsernameClick}
+            style={{ cursor: "pointer" }}
+          >
+            {displayUsername}
+          </Text>
         </Box>
         <Box>
           {currentUser?.uid !== userUID &&
@@ -364,6 +414,11 @@ const Post = ({
         comments={comments}
         onSubmitComment={handlePostComment}
         onUpdateComments={updateComments}
+      />
+      <UserProfile
+        isOpen={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        user={selectedUser}
       />
     </Box>
   );
