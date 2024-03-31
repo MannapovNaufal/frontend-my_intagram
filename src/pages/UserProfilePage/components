@@ -1,0 +1,30 @@
+import React, { useState } from "react";
+import UserProfileModal from "./UserProfileModal";
+
+const ParentComponent = () => {
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  const handleOpenProfileModal = (user) => {
+    setSelectedUser(user);
+    setIsProfileModalOpen(true);
+  };
+
+  const handleCloseProfileModal = () => {
+    setSelectedUser(null);
+    setIsProfileModalOpen(false);
+  };
+
+  return (
+    <div>
+      <button onClick={() => handleOpenProfileModal(user)}></button>
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={handleCloseProfileModal}
+        user={selectedUser}
+      />
+    </div>
+  );
+};
+
+export default ParentComponent;
