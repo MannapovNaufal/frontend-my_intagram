@@ -1,210 +1,140 @@
-// import React, { useContext, useEffect, useState } from "react";
-// import SidePanel from "../SidebarComponent/Sidebar";
-// import {
-//   arrayRemove,
-//   arrayUnion,
-//   collection,
-//   doc,
-//   getFirestore,
-//   onSnapshot,
-//   query,
-//   updateDoc,
-//   where,
-// } from "firebase/firestore";
-// import { useParams } from "react-router-dom";
-// import { AuthContext } from "../../components/AuthContext";
-// import { MinusIcon, AddIcon } from "@chakra-ui/icons";
-// import {
-//   Box as Container,
-//   Button,
-//   Flex,
-//   Image,
-//   Stack,
-//   Text,
-//   Box,
-// } from "@chakra-ui/react";
+import React, { useContext, useEffect, useState } from "react";
 
-// const UserProfile = () => {
-//   const { userId } = useParams();
-//   const [profile, setProfile] = useState({});
-//   const [userPosts, setUserPosts] = useState([]);
-//   const [isFollowing, setIsFollowing] = useState(false);
-//   const [followersCount, setFollowersCount] = useState(0);
-//   const [followingCount, setFollowingCount] = useState(0);
-//   const [postsCount, setPostsCount] = useState(0);
-//   const firestore = getFirestore();
-//   const { currentUser } = useContext(AuthContext);
+import { AuthContext } from "../../components/AuthContext";
+import {
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  Flex,
+  Box,
+  Avatar,
+  Text,
+  Spacer,
+  Center,
+} from "@chakra-ui/react";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "../../firebase/firebase";
+import { HamburgerIcon } from "@chakra-ui/icons";
 
-//   useEffect(() => {
-//     const fetchUserProfile = async () => {
-//       const profileRef = doc(firestore, "Users", userId);
-//       const unsubscribeProfile = onSnapshot(profileRef, (profileDoc) => {
-//         if (profileDoc.exists()) {
-//           const profileData = profileDoc.data();
-//           setProfile(profileData);
-//           setFollowersCount(
-//             profileData.followers ? profileData.followers.length : 0
-//           );
-//           setIsFollowing(
-//             currentUser &&
-//               profileData.followers &&
-//               profileData.followers.includes(currentUser.uid)
-//           );
-//           setFollowingCount(
-//             profileData.following ? profileData.following.length : 0
-//           );
+const UserProfileModal = ({ isOpen, onClose, user }) => {
+  const [userPosts, setUserPosts] = useState([]);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [postsCount, setPostsCount] = useState(0);
+  const [displayName, setDisplayName] = useState("");
+  const [dbInstance, setDbInstance] = useState(null);
+  const { currentUser } = useContext(AuthContext);
 
-//           const userPostsRef = collection(firestore, "Posts");
-//           const userPostsQuery = query(
-//             userPostsRef,
-//             where("user_id", "==", userId)
-//           );
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user || !dbInstance || !user.uid) return; 
 
-//           const unsubscribePosts = onSnapshot(
-//             userPostsQuery,
-//             (userPostsSnapshot) => {
-//               const postsData = userPostsSnapshot.docs.map((doc) => ({
-//                 id: doc.id,
-//                 ...doc.data(),
-//               }));
-//               setUserPosts(postsData);
-//               setPostsCount(postsData.length);
-//             }
-//           );
+      const userRef = collection(dbInstance, "Users");
+      const userQuery = query(userRef, where("uid", "==", user.uid));
 
-//           return () => {
-//             unsubscribePosts();
-//           };
-//         }
-//       });
+      const unsubscribeUser = onSnapshot(userQuery, (querySnapshot) => {
+        querySnapshot.forEach((doc) => {
+          const userData = doc.data();
+          setDisplayName(userData.displayName);
+          setFollowersCount(userData.followers ? userData.followers.length : 0);
+          setFollowingCount(userData.following ? userData.following.length : 0);
+          setPostsCount(userData.postsCount || 0);
+        });
+      });
 
-//       return () => {
-//         unsubscribeProfile();
-//       };
-//     };
+      const userPostsRef = collection(dbInstance, "Posts");
+      const userPostsQuery = query(
+        userPostsRef,
+        where("userUID", "==", user.uid)
+      );
 
-//     fetchUserProfile();
-//   }, [userId, currentUser?.uid, firestore]);
+      const postsUnsubscribe = onSnapshot(
+        userPostsQuery,
+        (userPostsSnapshot) => {
+          const postsData = userPostsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setUserPosts(postsData);
+          setPostsCount(postsData.length);
+        }
+      );
 
-//   const handleFollowClick = async () => {
-//     try {
-//       if (!currentUser) return;
+      return () => {
+        unsubscribeUser();
+        postsUnsubscribe();
+      };
+    };
 
-//       const followingUserRef = doc(firestore, "Users", currentUser.uid);
-//       const profileRef = doc(firestore, "Users", userId);
+    fetchUserData();
+  }, [user, dbInstance]);
 
-//       await updateDoc(profileRef, {
-//         followers: arrayUnion(currentUser.uid),
-//       });
+  useEffect(() => {
+    setDbInstance(db);
+  }, []);
 
-//       await updateDoc(followingUserRef, {
-//         following: arrayUnion(userId),
-//       });
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <ModalOverlay />
+      <ModalContent justifyContent="center" alignItems="center">
+        <Flex alignItems="center" m={5}>
+          <Avatar
+            src={user ? user.photoURL || "" : ""} 
+            alt="avatar"
+            w="20"
+            h="20"
+            mr={4}
+          />
+          <Flex flexDir="column">
+            <Flex alignItems="center">
+              <Text fontSize="xl" fontWeight="semibold" mr="2">
+                {displayName}
+              </Text>
+            </Flex>
+            <Text marginTop="4" marginBottom="2">
+              {postsCount} Posts <Spacer as="span" mx="1" />
+              {followersCount} Followers
+              <Spacer as="span" mx="1" />
+              {followingCount} Following
+            </Text>
+          </Flex>
+        </Flex>
+        <Box w={"90%"} borderTop={"1px"} borderColor={"gray.300"}>
+          <Center>
+            <HamburgerIcon marginTop={2} />
+          </Center>
+        </Box>
+        <Flex justifyContent="center" flexWrap="wrap">
+          {userPosts.map((post, index) => (
+            <Center key={post.id} style={{ margin: "10px" }}>
+              <Box
+                style={{
+                  width: "420px",
+                  height: "300px",
+                  position: "relative",
+                }}
+              >
+                <img
+                  src={post.imageUrl}
+                  alt="Post"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "8px",
+                  }}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "fallback_image_url";
+                  }}
+                />
+              </Box>
+            </Center>
+          ))}
+        </Flex>
+      </ModalContent>
+    </Modal>
+  );
+};
 
-//       setIsFollowing(true);
-//     } catch (error) {
-//       console.error("Error following user:", error);
-//     }
-//   };
-
-//   const handleUnfollowClick = async () => {
-//     try {
-//       if (!currentUser) return;
-
-//       const followingUserRef = doc(firestore, "Users", currentUser.uid);
-//       const profileRef = doc(firestore, "Users", userId);
-
-//       await updateDoc(profileRef, {
-//         followers: arrayRemove(currentUser.uid),
-//       });
-
-//       await updateDoc(followingUserRef, {
-//         following: arrayRemove(userId),
-//       });
-
-//       setIsFollowing(false);
-//     } catch (error) {
-//       console.error("Error unfollowing user:", error);
-//     }
-//   };
-
-//   return (
-//     <Flex height="100vh" overflow="hidden">
-//       <SidePanel />
-//       <Flex flexDirection="column" flex="1" bg="gray.100">
-//         <Container width="full" p="8" mx="auto" my="4">
-//           <Flex align="center" justify="space-between" p="4">
-//             <Flex align="center" width="full">
-//               <Image
-//                 src={profile.photo}
-//                 alt={`avatar`}
-//                 boxSize="20"
-//                 mr="4"
-//                 borderRadius="full"
-//               />
-//               <Box width="96">
-//                 <Flex
-//                   justify="space-between"
-//                   align="center"
-//                   text="xl"
-//                   fontWeight="semibold"
-//                 >
-//                   <Text>{profile.name}</Text>
-//                   <Button
-//                     onClick={
-//                       isFollowing ? handleUnfollowClick : handleFollowClick
-//                     }
-//                   >
-//                     {isFollowing ? (
-//                       <Stack
-//                         direction="row"
-//                         spacing={1}
-//                         alignItems="center"
-//                         color="red"
-//                       >
-//                         <MinusIcon />
-//                         <Text>Unfollow</Text>
-//                       </Stack>
-//                     ) : (
-//                       <Stack
-//                         direction="row"
-//                         spacing={1}
-//                         alignItems="center"
-//                         color="blue"
-//                       >
-//                         <AddIcon />
-//                         <Text>Follow</Text>
-//                       </Stack>
-//                     )}
-//                   </Button>
-//                 </Flex>
-//                 <Flex justify="space-around" mt="2" color="gray.600">
-//                   <Text>{postsCount} posts</Text>
-//                   <Text>{followersCount} followers</Text>
-//                   <Text>{followingCount} following</Text>
-//                 </Flex>
-//               </Box>
-//             </Flex>
-//           </Flex>
-
-//           <Box overflowY="auto" maxH="calc(100vh - 4rem)" width="full" mt="5">
-//             <Stack direction="row" spacing="2">
-//               {userPosts.map((post) => (
-//                 <Image
-//                   key={post.id}
-//                   src={post.imageUrl}
-//                   alt="Post"
-//                   objectFit="cover"
-//                   boxSize="52"
-//                   borderRadius="md"
-//                 />
-//               ))}
-//             </Stack>
-//           </Box>
-//         </Container>
-//       </Flex>
-//     </Flex>
-//   );
-// };
-
-// export default UserProfile;
+export default UserProfileModal;
